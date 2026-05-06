@@ -1,35 +1,30 @@
 // src/pages/employee/EmployeeList.jsx
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Filter, Search, UserPlus, ChevronLeft, ChevronRight } from 'lucide-react'
-import FilterModal from '@/components/shared/FilterModal'
+import {
+  Filter, Search, UserPlus, ChevronLeft, ChevronRight,
+  ArrowUpDown, ArrowUp, ArrowDown, Trash2, ChevronDown,
+} from 'lucide-react'
+import FilterModal   from '@/components/shared/FilterModal'
+import ConfirmModal  from '@/components/shared/ConfirmModal'
+import { useToast }  from '@/components/shared/toast/ToastProvider'
+import { useAuthStore } from '@/store/authStore'
+import employeeService, {
+  STATUS_TO_API, API_TO_STATUS, TYPE_TO_API, API_TO_TYPE,
+} from '@/services/employeeService'
 
 const PRIMARY  = '#C35E33'
-const PAGE_SIZE = 8
+const ROLES    = { ADMIN: 'ADMIN', HR: 'HR' }
 
-const EMPLOYEES = [
-  { id: '01', name: 'Mark G Parker',   dept: 'IT-Based', desig: 'Senior Developer',  email: 'demo@gmail.com', phone: '8952354526', date: '01-02-2023', status: 'Active',   type: 'Employee'    },
-  { id: '02', name: 'Mark G Parker',   dept: 'IT-Based', desig: 'Junior Developer',  email: 'demo@gmail.com', phone: '8952354526', date: '01-02-2023', status: 'Inactive', type: 'Internship'  },
-  { id: '03', name: 'Jaylon Vaccaro',  dept: 'IT-Based', desig: 'Senior Designer',   email: 'demo@gmail.com', phone: '8952354526', date: '01-02-2023', status: 'Hold',     type: 'Training'    },
-  { id: '04', name: 'Mark G Parker',   dept: 'IT-Based', desig: 'Senior Designer',   email: 'demo@gmail.com', phone: '8952354526', date: '01-02-2023', status: 'Active',   type: 'Employee'    },
-  { id: '05', name: 'Leo Workman',     dept: 'IT-Based', desig: 'Digital Marketing', email: 'demo@gmail.com', phone: '8952354526', date: '01-02-2023', status: 'Active',   type: 'Employee'    },
-  { id: '06', name: 'Corey Botosh',    dept: 'IT-Based', desig: 'Senior Developer',  email: 'demo@gmail.com', phone: '8952354526', date: '01-02-2023', status: 'Active',   type: 'Training'    },
-  { id: '07', name: 'James George',    dept: 'IT-Based', desig: 'Senior Developer',  email: 'demo@gmail.com', phone: '8952354526', date: '01-02-2023', status: 'Active',   type: 'Employee'    },
-  { id: '08', name: 'Anika Rhiel',     dept: 'IT-Based', desig: 'UI/UX Designer',    email: 'demo@gmail.com', phone: '8952354526', date: '05-03-2023', status: 'Active',   type: 'Internship'  },
-  { id: '09', name: 'Gretchen Curtis', dept: 'IT-Based', desig: 'Product Manager',   email: 'demo@gmail.com', phone: '8952354526', date: '10-04-2023', status: 'Inactive', type: 'Employee'    },
-  { id: '10', name: 'Ryan Westervelt', dept: 'IT-Based', desig: 'DevOps Engineer',   email: 'demo@gmail.com', phone: '8952354526', date: '15-05-2023', status: 'Hold',     type: 'Training'    },
-  { id: '11', name: 'Allison Bator',   dept: 'IT-Based', desig: 'QA Engineer',       email: 'demo@gmail.com', phone: '8952354526', date: '20-06-2023', status: 'Active',   type: 'Internship'  },
-  { id: '12', name: 'Carla Korsgaard', dept: 'IT-Based', desig: 'Data Analyst',      email: 'demo@gmail.com', phone: '8952354526', date: '25-07-2023', status: 'Active',   type: 'Employee'    },
-]
-
-const FILTER_TABS = ['All', 'Internship', 'Training', 'Employee']
+const PAGE_SIZES   = [10, 25, 50, 100]
+const FILTER_TABS  = ['All', 'Internship', 'Training', 'Employee', 'Draft']
 
 const FILTER_CONFIG = [
   { key: 'status', label: 'Status',      type: 'multi',  options: ['Active', 'Inactive', 'Hold'] },
   { key: 'type',   label: 'Type',        type: 'multi',  options: ['Employee', 'Internship', 'Training'] },
   { key: 'dept',   label: 'Department',  type: 'select', options: ['IT-Based', 'HR', 'Finance', 'Marketing'] },
-  { key: 'from',   label: 'Joined From', type: 'date' },
-  { key: 'to',     label: 'Joined To',   type: 'date' },
+  { key: 'from',   label: 'Joined From', type: 'date'  },
+  { key: 'to',     label: 'Joined To',   type: 'date'  },
 ]
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -41,15 +36,17 @@ function StatusBadge({ status }) {
   }
   const s = map[status] ?? map.Hold
   return (
-    <span className="inline-flex px-3 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
-      style={{ backgroundColor: s.bg, color: s.color }}>
+    <span
+      className="inline-flex px-3 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
+      style={{ backgroundColor: s.bg, color: s.color }}
+    >
       {status}
     </span>
   )
 }
 
 // ─── Action dropdown ──────────────────────────────────────────────────────────
-function ActionDropdown({ currentStatus, onStatusChange }) {
+function ActionDropdown({ employeeId, currentStatus, onStatusChange, onDelete, canDelete }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -60,9 +57,9 @@ function ActionDropdown({ currentStatus, onStatusChange }) {
   }, [])
 
   const options = [
-    { label: 'Active',   dot: '#15803D' },
-    { label: 'Inactive', dot: '#B91C1C' },
-    { label: 'Hold',     dot: '#1F2937' },
+    { label: 'Active',   apiVal: 'ACTIVE',   dot: '#15803D' },
+    { label: 'Inactive', apiVal: 'INACTIVE',  dot: '#B91C1C' },
+    { label: 'Hold',     apiVal: 'ON_HOLD',   dot: '#1F2937' },
   ]
 
   return (
@@ -70,26 +67,29 @@ function ActionDropdown({ currentStatus, onStatusChange }) {
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 border rounded-md px-2.5 py-1 text-xs font-medium transition-all"
-        style={{
-          borderColor: open ? PRIMARY : '#E5E7EB',
-          color: open ? PRIMARY : '#6B7280',
-        }}
+        style={{ borderColor: open ? PRIMARY : '#E5E7EB', color: open ? PRIMARY : '#6B7280' }}
       >
         •••
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2.5" strokeLinecap="round"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform .15s' }}>
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <ChevronDown
+          size={10} strokeWidth={2.5}
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
+        />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-1 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden" style={{ minWidth: 148 }}>
-          <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Set Status</p>
-          {options.map(({ label, dot }) => (
-            <button key={label}
-              onClick={() => { onStatusChange(label); setOpen(false) }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-gray-50 transition-colors text-left">
+        <div
+          className="absolute right-0 z-20 mt-1 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden"
+          style={{ minWidth: 148 }}
+        >
+          <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+            Set Status
+          </p>
+          {options.map(({ label, apiVal, dot }) => (
+            <button
+              key={label}
+              onClick={() => { onStatusChange(employeeId, apiVal, label); setOpen(false) }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-gray-50 transition-colors text-left"
+            >
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dot }} />
               <span className="text-gray-700">{label}</span>
               {currentStatus === label && (
@@ -100,49 +100,126 @@ function ActionDropdown({ currentStatus, onStatusChange }) {
               )}
             </button>
           ))}
+
+          {canDelete && (
+            <>
+              <div className="h-px bg-gray-100 mx-3 my-1" />
+              <button
+                onClick={() => { onDelete(employeeId); setOpen(false) }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-// ─── Sort icon ────────────────────────────────────────────────────────────────
-function SortIcon() {
+// ─── Sortable column header ────────────────────────────────────────────────────
+function SortHeader({ label, field, sortBy, sortDir, onSort }) {
+  const isActive = sortBy === field
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-      stroke={PRIMARY} strokeWidth="2.5" strokeLinecap="round" className="ml-1 inline-block flex-shrink-0">
-      <path d="m6 9 6-6 6 6"/><path d="m6 15 6 6 6-6"/>
-    </svg>
+    <button
+      className="inline-flex items-center gap-1 font-semibold transition-opacity hover:opacity-80"
+      style={{ color: PRIMARY }}
+      onClick={() => onSort(field)}
+    >
+      {label}
+      {isActive
+        ? sortDir === 'asc'
+          ? <ArrowUp size={10} />
+          : <ArrowDown size={10} />
+        : <ArrowUpDown size={10} style={{ opacity: 0.4 }} />
+      }
+    </button>
   )
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
-function Pagination({ current, total, pageSize, onChange }) {
-  const totalPages = Math.ceil(total / pageSize)
-  if (totalPages <= 1) return null
+// ─── Pagination bar ───────────────────────────────────────────────────────────
+function Pagination({ current, totalElements, pageSize, onPageChange, onSizeChange }) {
+  const totalPages = Math.ceil(totalElements / pageSize)
+  if (totalPages <= 0) return null
+
+  const pages = useMemo(() => {
+    const range = []
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || (i >= current - 1 && i <= current + 1)) {
+        range.push(i)
+      } else if (range[range.length - 1] !== '…') {
+        range.push('…')
+      }
+    }
+    return range
+  }, [current, totalPages])
+
   return (
     <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 flex-wrap gap-3">
-      <p className="text-xs text-gray-500">
-        Showing <span className="font-semibold text-gray-800">{(current - 1) * pageSize + 1}–{Math.min(current * pageSize, total)}</span> of <span className="font-semibold text-gray-800">{total}</span>
-      </p>
+      {/* Left: showing + page size */}
+      <div className="flex items-center gap-3">
+        <p className="text-xs text-gray-500">
+          Showing{' '}
+          <span className="font-semibold text-gray-800">
+            {Math.min((current - 1) * pageSize + 1, totalElements)}–{Math.min(current * pageSize, totalElements)}
+          </span>{' '}
+          of{' '}
+          <span className="font-semibold text-gray-800">{totalElements}</span>
+        </p>
+
+        {/* Page size selector */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-400">Rows:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onSizeChange(Number(e.target.value))}
+            className="h-7 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#C35E33] cursor-pointer bg-white"
+          >
+            {PAGE_SIZES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Right: page buttons */}
       <div className="flex items-center gap-1">
-        <button onClick={() => onChange(current - 1)} disabled={current === 1}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+        <button
+          onClick={() => onPageChange(current - 1)}
+          disabled={current === 1}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
           <ChevronLeft size={14} />
         </button>
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-          <button key={p} onClick={() => onChange(p)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium border transition-all"
-            style={{
-              borderColor:     current === p ? PRIMARY : '#E5E7EB',
-              backgroundColor: current === p ? PRIMARY : 'transparent',
-              color:           current === p ? '#fff'  : '#6B7280',
-            }}>
-            {p}
-          </button>
-        ))}
-        <button onClick={() => onChange(current + 1)} disabled={current === Math.ceil(total / pageSize)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+
+        {pages.map((p, i) =>
+          p === '…' ? (
+            <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-xs text-gray-400">
+              …
+            </span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium border transition-all"
+              style={{
+                borderColor:     current === p ? PRIMARY : '#E5E7EB',
+                backgroundColor: current === p ? PRIMARY : 'transparent',
+                color:           current === p ? '#fff'  : '#6B7280',
+              }}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        <button
+          onClick={() => onPageChange(current + 1)}
+          disabled={current === totalPages}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
           <ChevronRight size={14} />
         </button>
       </div>
@@ -153,57 +230,170 @@ function Pagination({ current, total, pageSize, onChange }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function EmployeeList() {
   const navigate = useNavigate()
+  const { toast } = useToast()
+  const { user }  = useAuthStore()
+  const isAdmin   = user?.role === ROLES.ADMIN
 
+  // ── Table state ─────────────────────────────────────────────────────────────
+  const [employees,      setEmployees]      = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [totalElements,  setTotalElements]  = useState(0)
+  const [counts,         setCounts]         = useState({
+    totalEmployees: 0, activeCount: 0, inactiveCount: 0, onHoldCount: 0, draftCount: 0,
+    employeeCount: 0, internCount: 0, traineeCount: 0,
+  })
+
+  // ── Filter / sort / pagination state ────────────────────────────────────────
   const [activeTab,     setActiveTab]     = useState('All')
   const [search,        setSearch]        = useState('')
   const [showFilter,    setShowFilter]    = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
   const [page,          setPage]          = useState(1)
-  const [employees,     setEmployees]     = useState(EMPLOYEES)
+  const [pageSize,      setPageSize]      = useState(10)
+  const [sortBy,        setSortBy]        = useState('id')
+  const [sortDir,       setSortDir]       = useState('asc')
 
-  const counts = {
-    total:    employees.length,
-    active:   employees.filter((e) => e.status === 'Active').length,
-    inactive: employees.filter((e) => e.status === 'Inactive').length,
-    hold:     employees.filter((e) => e.status === 'Hold').length,
+  // ── Delete modal state ───────────────────────────────────────────────────────
+  const [deleteTarget,  setDeleteTarget]  = useState(null)
+  const [deleting,      setDeleting]      = useState(false)
+
+  // ── Derive API params from UI state ─────────────────────────────────────────
+  const apiParams = useMemo(() => {
+    const p = {
+      page:    page - 1,
+      size:    pageSize,
+      sortBy,
+      sortDir,
+    }
+
+    // Tab → employment type or draft
+    if (activeTab === 'Draft') {
+      p.recordStatus = 'DRAFT'
+    } else {
+      p.recordStatus = 'SUBMITTED'
+      if (activeTab !== 'All') p.employmentType = TYPE_TO_API[activeTab]
+    }
+
+    if (search)                p.search     = search
+    if (activeFilters.dept)    p.department = activeFilters.dept
+
+    if (activeFilters.status?.length === 1) {
+      p.status = STATUS_TO_API[activeFilters.status[0]]
+    }
+
+    // Filter by type overrides tab if explicitly chosen
+    if (activeFilters.type?.length === 1) {
+      p.employmentType = TYPE_TO_API[activeFilters.type[0]]
+    }
+
+    if (activeFilters.from) p.dateFrom = activeFilters.from
+    if (activeFilters.to)   p.dateTo   = activeFilters.to
+
+    return p
+  }, [page, pageSize, sortBy, sortDir, activeTab, search, activeFilters])
+
+  // ── Fetch ────────────────────────────────────────────────────────────────────
+  const fetchEmployees = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await employeeService.getAll(apiParams)
+      const data = res.data
+
+      setEmployees(data.content.map(normaliseEmployee))
+      setTotalElements(data.totalElements)
+      setCounts({
+        totalEmployees: data.totalEmployees,
+        activeCount:    data.activeCount,
+        inactiveCount:  data.inactiveCount,
+        onHoldCount:    data.onHoldCount,
+        draftCount:     data.draftCount,
+        employeeCount:  data.employeeCount,
+        internCount:    data.internCount,
+        traineeCount:   data.traineeCount,
+      })
+    } catch (err) {
+      toast.error(err?.message || 'Failed to load employees')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiParams])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch whenever params change; debounce search
+  useEffect(() => {
+    const id = setTimeout(fetchEmployees, search ? 350 : 0)
+    return () => clearTimeout(id)
+  }, [fetchEmployees, search])
+
+  // Reset to page 1 when filters / tab change
+  useEffect(() => setPage(1), [activeTab, search, activeFilters, pageSize])
+
+  // ── Sort toggle ───────────────────────────────────────────────────────────────
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(field)
+      setSortDir('asc')
+    }
+    setPage(1)
   }
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return employees.filter((e) => {
-      const tabMatch    = activeTab === 'All' || e.type === activeTab
-      const searchMatch = !q || e.name.toLowerCase().includes(q) || e.desig.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)
-      const statusMatch = !activeFilters.status?.length || activeFilters.status.includes(e.status)
-      const typeMatch   = !activeFilters.type?.length   || activeFilters.type.includes(e.type)
-      const deptMatch   = !activeFilters.dept           || e.dept === activeFilters.dept
-      return tabMatch && searchMatch && statusMatch && typeMatch && deptMatch
-    })
-  }, [activeTab, search, activeFilters, employees])
+  // ── Status change ─────────────────────────────────────────────────────────────
+  const handleStatusChange = async (id, apiStatus, displayLabel) => {
+    // Optimistic update
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, status: displayLabel } : e))
+    )
+    try {
+      await employeeService.updateStatus(id, apiStatus)
+      toast.success(`Status updated to ${displayLabel}`)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update status')
+      fetchEmployees() // revert
+    }
+  }
 
-  useEffect(() => setPage(1), [activeTab, search, activeFilters])
+  // ── Delete ────────────────────────────────────────────────────────────────────
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await employeeService.delete(deleteTarget)
+      toast.success('Employee deactivated successfully')
+      setDeleteTarget(null)
+      fetchEmployees()
+    } catch (err) {
+      toast.error(err?.message || 'Failed to delete employee')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
-  const paginated = useMemo(
-    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filtered, page]
-  )
-
+  // ── Filter count badge ────────────────────────────────────────────────────────
   const filterCount = Object.values(activeFilters).filter((v) =>
     Array.isArray(v) ? v.length > 0 : !!v
   ).length
 
-  const handleStatusChange = (id, status) =>
-    setEmployees((prev) => prev.map((e) => e.id === id ? { ...e, status } : e))
+  // ── Tab badge counts ──────────────────────────────────────────────────────────
+  const tabBadge = {
+    All:        counts.totalEmployees,
+    Employee:   counts.employeeCount,
+    Internship: counts.internCount,
+    Training:   counts.traineeCount,
+    Draft:      counts.draftCount,
+  }
 
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Header ──────────────────────────────────────────── */}
+      {/* ── Page Header ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900 m-0">Employee Management</h1>
           <p className="text-xs text-gray-400 mt-0.5">Manage and track all employees</p>
         </div>
         <button
-          onClick={() => navigate('/employee/add')}
+          onClick={() => navigate('/employees/add')}
           className="flex items-center gap-2 text-white rounded-lg px-4 py-2.5 text-[13px] font-semibold cursor-pointer whitespace-nowrap border-none transition-colors"
           style={{ backgroundColor: '#111827' }}
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#374151')}
@@ -214,21 +404,25 @@ export default function EmployeeList() {
         </button>
       </div>
 
-      {/* ── Stats ───────────────────────────────────────────── */}
+      {/* ── Stats cards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {[
-          { label: 'Total Employees', value: counts.total,    bg: '#F3F4F6', color: '#111827', icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="1.8" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          )},
-          { label: 'Active',          value: counts.active,   bg: '#DCFCE7', color: '#15803D', icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth="1.8" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          )},
-          { label: 'Inactive',        value: counts.inactive, bg: '#FEE2E2', color: '#B91C1C', icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-          )},
-          { label: 'On Hold',         value: counts.hold,     bg: '#FEF9C3', color: '#854D0E', icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#854D0E" strokeWidth="1.8" strokeLinecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-          )},
+          {
+            label: 'Total Employees', value: counts.totalEmployees, bg: '#F3F4F6', color: '#111827',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="1.8" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+          },
+          {
+            label: 'Active', value: counts.activeCount, bg: '#DCFCE7', color: '#15803D',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth="1.8" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+          },
+          {
+            label: 'Inactive', value: counts.inactiveCount, bg: '#FEE2E2', color: '#B91C1C',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>,
+          },
+          {
+            label: 'On Hold', value: counts.onHoldCount, bg: '#FEF9C3', color: '#854D0E',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#854D0E" strokeWidth="1.8" strokeLinecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>,
+          },
         ].map(({ label, value, bg, color, icon }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
@@ -242,12 +436,14 @@ export default function EmployeeList() {
         ))}
       </div>
 
-      {/* ── Toolbar ─────────────────────────────────────────── */}
+      {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {/* Tabs */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {FILTER_TABS.map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs border cursor-pointer transition-all whitespace-nowrap"
               style={{
                 borderColor:     activeTab === tab ? '#111827' : '#E5E7EB',
@@ -256,10 +452,14 @@ export default function EmployeeList() {
                 fontWeight:      activeTab === tab ? 600 : 500,
               }}
             >
-              
               {tab}
-              {tab !== 'All' && (
-                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PRIMARY }} />
+              {tabBadge[tab] > 0 && (
+                <span
+                  className="min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
+                  style={{ backgroundColor: tab === 'Draft' ? '#9CA3AF' : PRIMARY }}
+                >
+                  {tabBadge[tab]}
+                </span>
               )}
             </button>
           ))}
@@ -270,7 +470,9 @@ export default function EmployeeList() {
           <label className="flex items-center gap-2 bg-white rounded-lg px-3 h-9 border border-gray-200 cursor-text">
             <Search size={13} color="#9CA3AF" strokeWidth={2} className="flex-shrink-0" />
             <input
-              type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search…"
               className="border-none outline-none text-[13px] text-gray-900 bg-transparent w-32 sm:w-40"
             />
@@ -285,8 +487,10 @@ export default function EmployeeList() {
             <Filter size={13} strokeWidth={2} />
             <span className="hidden sm:inline">Filter</span>
             {filterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
-                style={{ backgroundColor: PRIMARY }}>
+              <span
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
+                style={{ backgroundColor: PRIMARY }}
+              >
                 {filterCount}
               </span>
             )}
@@ -294,83 +498,176 @@ export default function EmployeeList() {
         </div>
       </div>
 
-      {/* ── Table ───────────────────────────────────────────── */}
+      {/* ── Table ───────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse" style={{ minWidth: 700 }}>
             <thead>
               <tr>
-                {[
-                  { label: 'ID',            sort: true  },
-                  { label: 'Employee Name', sort: true  },
-                  { label: 'Department',    sort: false },
-                  { label: 'Designation',   sort: false },
-                  { label: 'Email',         sort: false },
-                  { label: 'Phone',         sort: false },
-                  { label: 'Joining Date',  sort: true  },
-                  { label: 'Status',        sort: false },
-                  { label: 'Action',        sort: false },
-                ].map(({ label, sort }) => (
-                  <th key={label}
-                    className="px-3.5 py-3 text-left text-xs font-semibold bg-gray-50 border-b border-gray-100 whitespace-nowrap"
-                    style={{ color: PRIMARY }}>
-                    <span className="inline-flex items-center">{label}{sort && <SortIcon />}</span>
+                <th className="px-3.5 py-3 text-left text-xs bg-gray-50 border-b border-gray-100 whitespace-nowrap">
+                  <SortHeader label="ID" field="id" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                </th>
+                <th className="px-3.5 py-3 text-left text-xs bg-gray-50 border-b border-gray-100 whitespace-nowrap">
+                  <SortHeader label="Employee Name" field="name" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                </th>
+                {['Department', 'Designation', 'Email', 'Phone'].map((h) => (
+                  <th key={h} className="px-3.5 py-3 text-left text-xs font-semibold bg-gray-50 border-b border-gray-100 whitespace-nowrap" style={{ color: PRIMARY }}>
+                    {h}
                   </th>
                 ))}
+                <th className="px-3.5 py-3 text-left text-xs bg-gray-50 border-b border-gray-100 whitespace-nowrap">
+                  <SortHeader label="Joining Date" field="joiningDate" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                </th>
+                <th className="px-3.5 py-3 text-left text-xs font-semibold bg-gray-50 border-b border-gray-100 whitespace-nowrap" style={{ color: PRIMARY }}>Status</th>
+                <th className="px-3.5 py-3 text-left text-xs font-semibold bg-gray-50 border-b border-gray-100" style={{ color: PRIMARY }}>Action</th>
               </tr>
             </thead>
+
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-14 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="animate-spin w-6 h-6" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke={PRIMARY} strokeWidth="4" />
+                        <path className="opacity-75" fill={PRIMARY} d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      <span className="text-sm text-gray-400">Loading employees…</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : employees.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-14 text-center text-sm text-gray-400">
                     No employees match your filters.
                   </td>
                 </tr>
-              ) : paginated.map((emp) => (
-                <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-3.5 py-3 text-[11px] font-bold text-gray-400 border-b border-gray-50 whitespace-nowrap">#{emp.id}</td>
-                  <td className="px-3.5 py-3 border-b border-gray-50 whitespace-nowrap">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                        style={{ backgroundColor: PRIMARY }}>
-                        {emp.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
+              ) : (
+                employees.map((emp) => (
+                  <tr
+                    key={emp.id}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={(e) => {
+                      // don't navigate when clicking dropdown
+                      if (e.target.closest('[data-action]')) return
+                      navigate(`/employees/${emp.id}`)
+                    }}
+                  >
+                    <td className="px-3.5 py-3 text-[11px] font-bold text-gray-400 border-b border-gray-50 whitespace-nowrap">
+                      {emp.employeeCode ?? `#${String(emp.id).padStart(2, '0')}`}
+                    </td>
+                    <td className="px-3.5 py-3 border-b border-gray-50 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5">
+                        {emp.profileImageUrl ? (
+                          <img
+                            src={emp.profileImageUrl}
+                            alt={emp.fullName}
+                            className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                            style={{ backgroundColor: PRIMARY }}
+                          >
+                            {initials(emp.fullName)}
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-[13px] font-semibold text-gray-900 leading-none">{emp.fullName}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{emp.type}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[13px] font-semibold text-gray-900 leading-none">{emp.name}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{emp.type}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3.5 py-3 text-[13px] text-gray-600 border-b border-gray-50 whitespace-nowrap">{emp.dept}</td>
-                  <td className="px-3.5 py-3 text-[13px] text-gray-600 border-b border-gray-50 whitespace-nowrap">{emp.desig}</td>
-                  <td className="px-3.5 py-3 text-[13px] text-gray-500 border-b border-gray-50 whitespace-nowrap">{emp.email}</td>
-                  <td className="px-3.5 py-3 text-[13px] text-gray-500 border-b border-gray-50 whitespace-nowrap">{emp.phone}</td>
-                  <td className="px-3.5 py-3 text-[13px] text-gray-500 border-b border-gray-50 whitespace-nowrap">{emp.date}</td>
-                  <td className="px-3.5 py-3 border-b border-gray-50 whitespace-nowrap">
-                    <StatusBadge status={emp.status} />
-                  </td>
-                  <td className="px-3.5 py-3 border-b border-gray-50">
-                    <ActionDropdown
-                      currentStatus={emp.status}
-                      onStatusChange={(s) => handleStatusChange(emp.id, s)}
-                    />
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-3.5 py-3 text-[13px] text-gray-600 border-b border-gray-50 whitespace-nowrap">{emp.dept  || '—'}</td>
+                    <td className="px-3.5 py-3 text-[13px] text-gray-600 border-b border-gray-50 whitespace-nowrap">{emp.desig || '—'}</td>
+                    <td className="px-3.5 py-3 text-[13px] text-gray-500 border-b border-gray-50 whitespace-nowrap">{emp.email || '—'}</td>
+                    <td className="px-3.5 py-3 text-[13px] text-gray-500 border-b border-gray-50 whitespace-nowrap">{emp.phone || '—'}</td>
+                    <td className="px-3.5 py-3 text-[13px] text-gray-500 border-b border-gray-50 whitespace-nowrap">
+                      {emp.date ? formatDate(emp.date) : '—'}
+                    </td>
+                    <td className="px-3.5 py-3 border-b border-gray-50 whitespace-nowrap">
+                      {emp.isDraft
+                        ? <span className="inline-flex px-3 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500">Draft</span>
+                        : <StatusBadge status={emp.status} />
+                      }
+                    </td>
+                    <td className="px-3.5 py-3 border-b border-gray-50" data-action>
+                      <ActionDropdown
+                        employeeId={emp.id}
+                        currentStatus={emp.status}
+                        onStatusChange={handleStatusChange}
+                        onDelete={() => setDeleteTarget(emp.id)}
+                        canDelete={isAdmin}
+                      />
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-        <Pagination current={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
+
+        <Pagination
+          current={page}
+          totalElements={totalElements}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onSizeChange={(s) => { setPageSize(s); setPage(1) }}
+        />
       </div>
 
-      {/* ── Filter Modal ────────────────────────────────────── */}
+      {/* ── Filter Modal ────────────────────────────────────────── */}
       <FilterModal
         isOpen={showFilter}
         onClose={() => setShowFilter(false)}
-        onApply={(f) => setActiveFilters(f)}
-        onReset={() => setActiveFilters({})}
+        onApply={(f) => { setActiveFilters(f); setPage(1) }}
+        onReset={() => { setActiveFilters({}); setPage(1) }}
         config={FILTER_CONFIG}
+      />
+
+      {/* ── Delete Confirm Modal ─────────────────────────────────── */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Deactivate Employee"
+        description="Are you sure you want to deactivate this employee? This performs a soft delete and the record can be restored."
+        confirmLabel="Deactivate"
+        variant="danger"
+        loading={deleting}
       />
     </>
   )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function initials(name = '') {
+  return name.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—'
+  try {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        .replace(/\//g, '-')
+  } catch { return dateStr }
+}
+
+/** Normalise API response → UI shape */
+function normaliseEmployee(item) {
+  return {
+    id:             item.id,
+    employeeCode:   item.employeeCode,
+    fullName:       item.fullName    || '',
+    profileImageUrl:item.profileImageUrl,
+    dept:           item.departmentName,
+    desig:          item.designationName,
+    email:          item.email,
+    phone:          item.phone,
+    date:           item.joiningDate,
+    status:         API_TO_STATUS[item.status] || 'Active',
+    type:           API_TO_TYPE[item.employmentType] || item.employmentType,
+    isDraft:        item.recordStatus === 'DRAFT',
+  }
 }

@@ -1,37 +1,49 @@
 // src/pages/auth/LoginPage.jsx
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import AuthLayout  from '@/components/auth/AuthLayout'
-import AuthInput   from '@/components/auth/AuthInput'
-import AuthButton  from '@/components/auth/AuthButton'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
+import AuthLayout   from '@/components/auth/AuthLayout'
+import AuthInput    from '@/components/auth/AuthInput'
+import AuthButton   from '@/components/auth/AuthButton'
 import illustration from '@/assets/images/login-illustration.png'
 import { useAuthStore } from '@/store/authStore'
-import { ROUTES } from '@/constants/routes'
+import { useToast }     from '@/components/shared/toast/ToastProvider'
+import authService      from '@/services/authService'
+import { ROUTES }       from '@/constants/routes'
 
 // ── Validation helpers ────────────────────────────────────────
 const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
 
+// Normalise email so case differences never cause "Invalid credentials"
+// e.g. "DEMO@Gmail.Com" → "demo@gmail.com"
+const normaliseEmail = (v) => v.trim().toLowerCase()
+
 export default function LoginPage() {
   const navigate   = useNavigate()
-  const login      = useAuthStore((s) => s.login)
+  const location   = useLocation()
+  const loginStore = useAuthStore((s) => s.login)
+  const { toast }  = useToast()
+
+  const from = location.state?.from?.pathname || ROUTES.DASHBOARD
 
   const [form,    setForm]    = useState({ email: '', password: '' })
   const [errors,  setErrors]  = useState({})
   const [loading, setLoading] = useState(false)
-  const [apiError, setApiError] = useState('')
 
   const set = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
     setErrors((prev) => ({ ...prev, [field]: '' }))
-    setApiError('')
   }
 
   const validate = () => {
     const next = {}
-    if (!form.email)                      next.email    = 'Email is required.'
-    else if (!isValidEmail(form.email))   next.email    = 'Enter a valid email address.'
-    if (!form.password)                   next.password = 'Password is required.'
-    else if (form.password.length < 6)    next.password = 'Password must be at least 6 characters.'
+    if (!form.email)
+      next.email    = 'Email is required.'
+    else if (!isValidEmail(form.email))
+      next.email    = 'Please enter a valid email address.'
+    if (!form.password)
+      next.password = 'Password is required.'
+    else if (form.password.length < 6)
+      next.password = 'Password must be at least 6 characters.'
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -39,16 +51,24 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e?.preventDefault()
     if (!validate()) return
+
     setLoading(true)
     try {
-      // Replace with your real auth service call:
-      // await authService.login(form.email, form.password)
-      await new Promise((r) => setTimeout(r, 1200)) // demo delay
-      // After success — update auth store and redirect
-      // login({ email: form.email, role: 'admin' }, 'your_jwt_token')
-      navigate(ROUTES.DASHBOARD)
+      // ✅ Always normalise email before sending — prevents BadCredentials
+      //    caused by case differences ("Admin@GMAIL.com" vs "admin@gmail.com")
+      const res = await authService.login(
+        normaliseEmail(form.email),
+        form.password
+      )
+
+      // res = { success, message, data: LoginResponseDTO }
+      loginStore(res.data)
+
+      toast.success('Welcome back! Redirecting to your dashboard.', 'Login Successful')
+      navigate(from, { replace: true })
     } catch (err) {
-      setApiError(err?.message || 'Invalid credentials. Please try again.')
+      const msg = err?.message || 'Invalid credentials. Please try again.'
+      toast.error(msg, 'Login Failed')
     } finally {
       setLoading(false)
     }
@@ -88,16 +108,9 @@ export default function LoginPage() {
           error={errors.password}
         />
 
-        {/* API error */}
-        {apiError && (
-          <p className="mb-4 text-[13px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 font-medium">
-            {apiError}
-          </p>
-        )}
-
         <div className="mt-6">
           <AuthButton loading={loading} disabled={!isFormFilled}>
-            Log-In
+            Log In
           </AuthButton>
         </div>
       </form>
@@ -105,13 +118,13 @@ export default function LoginPage() {
       {/* Forgot password */}
       <p className="mt-5 text-center text-[13px] font-semibold text-gray-800">
         <Link
-          to="/forgot-password"
+          to={ROUTES.FORGOT_PASSWORD}
           className="hover:underline transition-colors"
           style={{ color: '#1A1A1A' }}
           onMouseEnter={(e) => (e.currentTarget.style.color = '#C35E33')}
           onMouseLeave={(e) => (e.currentTarget.style.color = '#1A1A1A')}
         >
-          Forgot Password ?
+          Forgot Password?
         </Link>
       </p>
     </AuthLayout>

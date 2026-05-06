@@ -1,3 +1,4 @@
+// src/routes/RoleRoute.jsx
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { hasRouteAccess } from '@/utils/permissions'

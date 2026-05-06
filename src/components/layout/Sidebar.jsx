@@ -26,7 +26,7 @@ const MASTER_ITEMS = [
   { label: 'Holiday',      icon: CalendarDays,   route: ROUTES.HOLIDAY      },
 ]
 
-// ─── NAV_ITEMS ────────────────────────────────────────────────────────────────
+// NAV_ITEMS 
 const NAV_ITEMS = [
   { label: 'Dashboard',           icon: LayoutDashboard, route: ROUTES.DASHBOARD       },
   { label: 'Employee',            icon: UserRound,       route: ROUTES.EMPLOYEE        },
@@ -34,7 +34,7 @@ const NAV_ITEMS = [
   { label: 'Attendance', icon: CalendarClock, route: ROUTES.ATTENDANCE_EMPLOYEE }, 
   { label: 'Shift Management',    icon: Clock,           route: ROUTES.SHIFT           },
   { label: 'Leave Management',    icon: CalendarX2,      route: ROUTES.LEAVE           }, 
-  { label: 'Leave Management',    icon: CalendarX2,      route: ROUTES.LEAVE_EMPLOYEE  }, // Employee / Intern / Trainee
+  { label: 'Leave Management',    icon: CalendarX2,      route: ROUTES.LEAVE_EMPLOYEE  },
   { label: 'Roles & Permissions', icon: ShieldCheck,     route: ROUTES.ROLES           },
   { label: 'Project',             icon: FolderKanban,    route: ROUTES.PROJECTS        },
   { label: 'Time Sheet',          icon: ClipboardList,   route: ROUTES.TIMESHEET       },
@@ -169,7 +169,7 @@ function SidebarPanel({ items }) {
           const isLast     = idx === items.length - 1
           const showDivider = !isLast
 
-          // ── Master Data collapsible ──────────────────────────
+          // ── Master Data collapsible
           if (item.route === '__master__') {
             return (
               <div key="__master__">
@@ -179,7 +179,7 @@ function SidebarPanel({ items }) {
             )
           }
 
-          // ── Regular nav link ─────────────────────────────────
+          // ── Regular nav link
           const Icon = item.icon
           return (
             <div key={item.route}>
@@ -240,7 +240,7 @@ export default function Sidebar() {
     const h = () => setIsMobile(window.innerWidth < MOBILE_BP)
     window.addEventListener('resize', h)
     return () => window.removeEventListener('resize', h)
-  }, [])
+  }, [])  
 
   const filteredItems = NAV_ITEMS.filter((item) => {
     // '__master__' sentinel: only show when the user can access ≥ 1 child

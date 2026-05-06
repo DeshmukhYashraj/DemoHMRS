@@ -5,11 +5,15 @@ import AuthLayout   from '@/components/auth/AuthLayout'
 import AuthInput    from '@/components/auth/AuthInput'
 import AuthButton   from '@/components/auth/AuthButton'
 import illustration from '@/assets/images/forgot-pass-illustration.png'
+import { useToast } from '@/components/shared/toast/ToastProvider'
+import authService  from '@/services/authService'
+import { ROUTES }   from '@/constants/routes'
 
 const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
 
 export default function ForgotPasswordPage() {
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
+  const { toast }  = useToast()
 
   const [email,   setEmail]   = useState('')
   const [error,   setError]   = useState('')
@@ -18,19 +22,36 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e) => {
     e?.preventDefault()
-    if (!email)                  { setError('Email is required.');           return }
-    if (!isValidEmail(email))    { setError('Enter a valid email address.'); return }
+
+    // Client-side validation
+    if (!email.trim()) {
+      setError('Email address is required.')
+      return
+    }
+    if (!isValidEmail(email)) {
+      setError('Please enter a valid email address.')
+      return
+    }
     setError('')
     setLoading(true)
+
     try {
-      // Replace with your real forgot-password service call:
-      // await authService.forgotPassword(email)
-      await new Promise((r) => setTimeout(r, 1200)) // demo delay
+      const res = await authService.forgotPassword(email.trim().toLowerCase())
+
+      toast.success(
+        res.message || 'OTP sent! Check your inbox.',
+        'Email Sent'
+      )
       setSent(true)
-      // Navigate to OTP page, passing email as state
-      setTimeout(() => navigate('/verify-otp', { state: { email } }), 1500)
+
+      // Navigate to OTP page after a short delay so user can read the toast
+      setTimeout(() => {
+        navigate(ROUTES.VERIFY_OTP, { state: { email: email.trim().toLowerCase() } })
+      }, 1800)
     } catch (err) {
-      setError(err?.message || 'Something went wrong. Please try again.')
+      const msg = err?.message || 'Something went wrong. Please try again.'
+      setError(msg)
+      toast.error(msg, 'Request Failed')
     } finally {
       setLoading(false)
     }
@@ -50,7 +71,7 @@ export default function ForgotPasswordPage() {
 
       {sent ? (
         /* ── Success state ── */
-        <div className="flex flex-col items-center gap-4 py-6 text-center animate-fade-in">
+        <div className="flex flex-col items-center gap-4 py-6 text-center">
           <div
             className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{ backgroundColor: '#FDF5F1', border: '2px solid #C35E33' }}
@@ -60,17 +81,19 @@ export default function ForgotPasswordPage() {
               <polyline points="22,6 12,13 2,6"/>
             </svg>
           </div>
-          <p className="text-[15px] font-semibold text-gray-800">Email Sent!</p>
-          <p className="text-[13px] text-gray-500">
-            Check your inbox for the OTP. Redirecting…
+          <p className="text-[15px] font-semibold text-gray-800">OTP Sent Successfully!</p>
+          <p className="text-[13px] text-gray-500 text-center max-w-xs">
+            We sent a 6-digit code to <strong>{email}</strong>.
+            It expires in <strong>5 minutes</strong>.
           </p>
+          <p className="text-[12px] text-gray-400">Redirecting to verification…</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           <AuthInput
-            label="Email"
+            label="Email Address"
             type="email"
-            placeholder="Demo@Gmail.Com"
+            placeholder="yourname@company.com"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError('') }}
             error={error}
@@ -78,8 +101,8 @@ export default function ForgotPasswordPage() {
           />
 
           <div className="mt-6">
-            <AuthButton loading={loading} disabled={!email}>
-              Sent Email
+            <AuthButton loading={loading} disabled={!email.trim()}>
+              Send OTP
             </AuthButton>
           </div>
         </form>
@@ -89,7 +112,7 @@ export default function ForgotPasswordPage() {
       <p className="mt-6 text-center text-[13px] text-gray-500">
         Remember your password?{' '}
         <Link
-          to="/login"
+          to={ROUTES.LOGIN}
           className="font-semibold transition-colors"
           style={{ color: '#C35E33' }}
         >

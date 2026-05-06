@@ -1,14 +1,15 @@
+// src/services/apiClient.js
 import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
 import { ROUTES } from '@/constants/routes'
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 15000,
+  timeout: 15_000,
   headers: { 'Content-Type': 'application/json' },
 })
 
-// ─── Request Interceptor — attach JWT token ───
+// Request Interceptor — attach JWT access token
 apiClient.interceptors.request.use(
   (config) => {
     const { token } = useAuthStore.getState()
@@ -20,15 +21,81 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// ─── Response Interceptor — handle 401 globally ───
+// Response Interceptor — handle 401 / token refresh
+let isRefreshing   = false
+let refreshQueue   = []   // pending requests waiting for new token
+
+const processQueue = (error, token = null) => {
+  refreshQueue.forEach(({ resolve, reject }) =>
+    error ? reject(error) : resolve(token)
+  )
+  refreshQueue = []
+}
+
 apiClient.interceptors.response.use(
+  // Unwrap the ApiResponse wrapper so callers get { success, message, data }
   (response) => response.data,
-  (error) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout()
-      window.location.href = ROUTES.LOGIN
+
+  async (error) => {
+    const originalRequest = error.config
+
+    // 401 Unauthorized — attempt silent token refresh
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry
+    ) {
+      const { refreshToken, updateTokens, logout } = useAuthStore.getState()
+
+      if (!refreshToken) {
+        logout()
+        window.location.href = ROUTES.LOGIN
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        // Queue this request until refresh completes
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({ resolve, reject })
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return apiClient(originalRequest)
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing            = true
+
+      try {
+        const res = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/auth/refresh`,
+          { refreshToken }
+        )
+        const { token: newAccess, refreshToken: newRefresh } = res.data.data
+
+        updateTokens(newAccess, newRefresh)
+        apiClient.defaults.headers.common.Authorization = `Bearer ${newAccess}`
+
+        processQueue(null, newAccess)
+        originalRequest.headers.Authorization = `Bearer ${newAccess}`
+        return apiClient(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        logout()
+        window.location.href = ROUTES.LOGIN
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
-    return Promise.reject(error.response?.data || error)
+
+    // ── Extract backend error message ─────────────────────────────────────────
+    const backendMessage =
+      error.response?.data?.message ||
+      error.response?.data?.error   ||
+      error.message                 ||
+      'Something went wrong. Please try again.'
+
+    return Promise.reject({ message: backendMessage, status: error.response?.status })
   }
 )
 

@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom'
 const PRIMARY = '#C35E33'
 
 const EMPLOYMENT_TYPE_ROUTES = {
-  Internship: '/employee/add-intern',
-  Training:   '/employee/add-trainee',
-  Employee:   '/employee/add',
+  Internship: '/employees/add-intern',
+  Training:   '/employees/add-trainee',
+  Employee:   '/employees/add',
 }
 
 // ─── Shared primitives ─────────────────────────────────────────────────────────

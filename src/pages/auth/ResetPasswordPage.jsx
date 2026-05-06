@@ -1,23 +1,27 @@
 // src/pages/auth/ResetPasswordPage.jsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import AuthLayout   from '@/components/auth/AuthLayout'
 import AuthInput    from '@/components/auth/AuthInput'
 import AuthButton   from '@/components/auth/AuthButton'
 import illustration from '@/assets/images/reset-pass-illustration.png'
+import { useToast } from '@/components/shared/toast/ToastProvider'
+import authService  from '@/services/authService'
+import { ROUTES }   from '@/constants/routes'
 
 // ── Password strength indicator ───────────────────────────────
 function StrengthBar({ password }) {
   const getStrength = (p) => {
     if (!p) return 0
     let score = 0
-    if (p.length >= 8)            score++
-    if (/[A-Z]/.test(p))          score++
-    if (/[0-9]/.test(p))          score++
-    if (/[^A-Za-z0-9]/.test(p))   score++
+    if (p.length >= 8)          score++
+    if (/[A-Z]/.test(p))        score++
+    if (/[0-9]/.test(p))        score++
+    if (/[^A-Za-z0-9]/.test(p)) score++
     return score
   }
 
+  
   const strength = getStrength(password)
   const labels   = ['', 'Weak', 'Fair', 'Good', 'Strong']
   const colors   = ['', '#EF4444', '#F59E0B', '#3B82F6', '#16A34A']
@@ -43,10 +47,20 @@ function StrengthBar({ password }) {
 }
 
 export default function ResetPasswordPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const email    = location.state?.email || ''
-  const otp      = location.state?.otp   || ''
+  const navigate  = useNavigate()
+  const location  = useLocation()
+  const { toast } = useToast()
+
+  const email = location.state?.email || ''
+  const otp   = location.state?.otp   || ''
+
+  // Guard: if accessed without verified OTP state, go back to forgot-password
+  useEffect(() => {
+    if (!email || !otp) {
+      toast.warning('Please complete OTP verification first.', 'Access Denied')
+      navigate(ROUTES.FORGOT_PASSWORD, { replace: true })
+    }
+  }, [email, otp]) // eslint-disable-line
 
   const [form,    setForm]    = useState({ newPassword: '', confirmPassword: '' })
   const [errors,  setErrors]  = useState({})
@@ -65,9 +79,9 @@ export default function ResetPasswordPage() {
     else if (form.newPassword.length < 8)
       next.newPassword = 'Password must be at least 8 characters.'
     if (!form.confirmPassword)
-      next.confirmPassword = 'Please confirm your password.'
+      next.confirmPassword = 'Please confirm your new password.'
     else if (form.newPassword !== form.confirmPassword)
-      next.confirmPassword = 'Passwords do not match.'
+      next.confirmPassword = 'Passwords do not match. Please try again.'
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -75,15 +89,25 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e) => {
     e?.preventDefault()
     if (!validate()) return
+
     setLoading(true)
     try {
-      // Replace with your real reset-password service call:
-      // await authService.resetPassword({ email, otp, newPassword: form.newPassword })
-      await new Promise((r) => setTimeout(r, 1200)) // demo delay
+      const res = await authService.resetPassword(email, otp, form.newPassword)
+
+      toast.success(
+        res.message || 'Your password has been reset. Please log in.',
+        'Password Reset'
+      )
       setSuccess(true)
-      setTimeout(() => navigate('/login'), 2500)
+
+      setTimeout(() => navigate(ROUTES.LOGIN, { replace: true }), 2500)
     } catch (err) {
-      setErrors({ newPassword: err?.message || 'Failed to reset. Please try again.' })
+      const msg = err?.message || 'Failed to reset password. Please try again.'
+      toast.error(msg, 'Reset Failed')
+      // If OTP has expired or been tampered with, send them back
+      if (err?.status === 400 || err?.status === 404) {
+        setErrors({ newPassword: msg })
+      }
     } finally {
       setLoading(false)
     }
@@ -107,7 +131,9 @@ export default function ResetPasswordPage() {
           </div>
           <div>
             <p className="text-[20px] font-bold text-gray-900">Password Reset!</p>
-            <p className="text-[13px] text-gray-500 mt-1">Redirecting you to login…</p>
+            <p className="text-[13px] text-gray-500 mt-1">
+              Redirecting you to login…
+            </p>
           </div>
         </div>
       ) : (
@@ -115,18 +141,23 @@ export default function ResetPasswordPage() {
           {/* Heading */}
           <div className="mb-8">
             <h1 className="text-[28px] sm:text-[32px] font-extrabold text-gray-900 leading-tight tracking-tight mb-2">
-              Please Reset your Password
+              Reset your Password
             </h1>
             <p className="text-[14px] text-gray-500 font-medium">
-              Set A New Password And Keep Your Account Safe
+              Set a new password and keep your account safe
             </p>
+            {email && (
+              <p className="mt-1.5 text-[13px] font-semibold" style={{ color: '#C35E33' }}>
+                Account: {email}
+              </p>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} noValidate>
             <AuthInput
               label="New Password"
               type="password"
-              placeholder="••••••••••"
+              placeholder="Min. 8 characters"
               value={form.newPassword}
               onChange={set('newPassword')}
               error={errors.newPassword}
@@ -137,7 +168,7 @@ export default function ResetPasswordPage() {
             <AuthInput
               label="Confirm Password"
               type="password"
-              placeholder="••••••••••"
+              placeholder="Re-enter your new password"
               value={form.confirmPassword}
               onChange={set('confirmPassword')}
               error={errors.confirmPassword}
@@ -151,7 +182,7 @@ export default function ResetPasswordPage() {
           </form>
 
           <p className="mt-5 text-center text-[13px] text-gray-500">
-            <Link to="/login" className="font-semibold" style={{ color: '#C35E33' }}>
+            <Link to={ROUTES.LOGIN} className="font-semibold" style={{ color: '#C35E33' }}>
               ← Back to Login
             </Link>
           </p>

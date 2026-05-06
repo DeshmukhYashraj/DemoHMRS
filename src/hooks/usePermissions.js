@@ -1,3 +1,4 @@
+// src/hooks/usePermissions.js
 import { useAuthStore } from '@/store/authStore'
 import { hasRouteAccess } from '@/utils/permissions'
 

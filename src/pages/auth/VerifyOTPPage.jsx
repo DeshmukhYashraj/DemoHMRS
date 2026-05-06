@@ -4,9 +4,12 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import AuthLayout   from '@/components/auth/AuthLayout'
 import AuthButton   from '@/components/auth/AuthButton'
 import illustration from '@/assets/images/verify-otp-illustration.png'
+import { useToast } from '@/components/shared/toast/ToastProvider'
+import authService  from '@/services/authService'
+import { ROUTES }   from '@/constants/routes'
 
 const OTP_LENGTH  = 6
-const TIMER_START = 5 * 60 // 5 minutes in seconds
+const TIMER_START = 5 * 60   // 5 minutes in seconds
 
 // ── Single OTP digit box ──────────────────────────────────────
 function OtpBox({ value, index, inputRef, onChange, onKeyDown, onPaste, hasError }) {
@@ -32,24 +35,29 @@ function OtpBox({ value, index, inputRef, onChange, onKeyDown, onPaste, hasError
       onPaste={onPaste}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      className="w-12 h-14 sm:w-14 sm:h-16 rounded-xl text-center text-[20px] font-bold text-gray-900
-                 outline-none transition-all duration-200 caret-transparent"
+      className="w-12 h-14 sm:w-14 sm:h-16 rounded-xl text-center text-[20px] font-bold
+                 text-gray-900 outline-none transition-all duration-200 caret-transparent"
       style={{
-        border: `1.5px solid ${borderColor}`,
+        border:          `1.5px solid ${borderColor}`,
         backgroundColor: value ? '#FDF5F1' : '#FAFAFA',
-        boxShadow: focused ? '0 0 0 3px rgba(195,94,51,0.12)' : 'none',
+        boxShadow:       focused ? '0 0 0 3px rgba(195,94,51,0.12)' : 'none',
       }}
       aria-label={`OTP digit ${index + 1}`}
     />
   )
 }
 
-// ── Timer display ─────────────────────────────────────────────
+// ── Countdown timer ───────────────────────────────────────────
 function CountdownTimer({ seconds }) {
-  const mm = String(Math.floor(seconds / 60)).padStart(2, '0')
-  const ss = String(seconds % 60).padStart(2, '0')
+  const mm    = String(Math.floor(seconds / 60)).padStart(2, '0')
+  const ss    = String(seconds % 60).padStart(2, '0')
+  const isLow = seconds <= 60
+
   return (
-    <p className="text-[15px] font-bold" style={{ color: '#C35E33' }}>
+    <p
+      className="text-[15px] font-bold transition-colors"
+      style={{ color: isLow ? '#DC2626' : '#C35E33' }}
+    >
       {mm}:{ss}
     </p>
   )
@@ -58,12 +66,21 @@ function CountdownTimer({ seconds }) {
 export default function VerifyOTPPage() {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const email     = location.state?.email || ''
+  const { toast } = useToast()
 
-  const [otp,      setOtp]      = useState(Array(OTP_LENGTH).fill(''))
-  const [timer,    setTimer]    = useState(TIMER_START)
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
+  const email = location.state?.email || ''
+
+  // Redirect to forgot-password if accessed directly without email
+  useEffect(() => {
+    if (!email) {
+      navigate(ROUTES.FORGOT_PASSWORD, { replace: true })
+    }
+  }, [email, navigate])
+
+  const [otp,       setOtp]       = useState(Array(OTP_LENGTH).fill(''))
+  const [timer,     setTimer]     = useState(TIMER_START)
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
   const [resending, setResending] = useState(false)
 
   const inputRefs = useRef([])
@@ -74,6 +91,13 @@ export default function VerifyOTPPage() {
     const id = setInterval(() => setTimer((t) => t - 1), 1000)
     return () => clearInterval(id)
   }, [timer])
+
+  // Alert when timer hits 0
+  useEffect(() => {
+    if (timer === 0) {
+      toast.warning('Your OTP has expired. Please request a new one.', 'OTP Expired')
+    }
+  }, [timer]) // eslint-disable-line
 
   // ── OTP input logic ──────────────────────────────────────────
   const handleChange = useCallback((index, raw) => {
@@ -113,43 +137,62 @@ export default function VerifyOTPPage() {
     const next = Array(OTP_LENGTH).fill('')
     pasted.split('').forEach((c, i) => { next[i] = c })
     setOtp(next)
-    const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1)
-    inputRefs.current[focusIdx]?.focus()
+    inputRefs.current[Math.min(pasted.length, OTP_LENGTH - 1)]?.focus()
     setError('')
   }, [])
 
-  // ── Submit ───────────────────────────────────────────────────
+  // ── Verify OTP ───────────────────────────────────────────────
   const handleVerify = async (e) => {
     e?.preventDefault()
+
     const code = otp.join('')
     if (code.length < OTP_LENGTH) {
-      setError('Please enter the complete 6-digit OTP.')
+      setError('Please enter all 6 digits of your OTP.')
       return
     }
+    if (timer <= 0) {
+      setError('Your OTP has expired. Please request a new one.')
+      return
+    }
+
     setLoading(true)
     try {
-      // Replace with your real OTP verification call:
-      // await authService.verifyOTP(email, code)
-      await new Promise((r) => setTimeout(r, 1200)) // demo delay
-      navigate('/reset-password', { state: { email, otp: code } })
+      const res = await authService.verifyOtp(email, code)
+
+      toast.success(
+        res.message || 'OTP verified. You can now reset your password.',
+        'Verification Successful'
+      )
+
+      navigate(ROUTES.RESET_PASSWORD, { state: { email, otp: code } })
     } catch (err) {
-      setError(err?.message || 'Invalid OTP. Please check and try again.')
+      const msg = err?.message || 'Invalid OTP. Please check the code and try again.'
+      setError(msg)
+      toast.error(msg, 'Verification Failed')
+      // Clear OTP boxes on failure so user can re-enter cleanly
+      setOtp(Array(OTP_LENGTH).fill(''))
+      inputRefs.current[0]?.focus()
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Resend ───────────────────────────────────────────────────
+  // ── Resend OTP ───────────────────────────────────────────────
   const handleResend = async () => {
-    if (timer > 0) return
+    if (timer > 0 || resending) return
     setResending(true)
     try {
-      // await authService.forgotPassword(email)
-      await new Promise((r) => setTimeout(r, 800))
+      const res = await authService.forgotPassword(email)
+      toast.success(
+        res.message || 'A new OTP has been sent to your email.',
+        'OTP Resent'
+      )
       setOtp(Array(OTP_LENGTH).fill(''))
       setTimer(TIMER_START)
       setError('')
-      inputRefs.current[0]?.focus()
+      setTimeout(() => inputRefs.current[0]?.focus(), 50)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to resend OTP. Please try again.', 'Error')
     } finally {
       setResending(false)
     }
@@ -168,8 +211,8 @@ export default function VerifyOTPPage() {
           Secure your account by verifying the code
         </p>
         {email && (
-          <p className="mt-1 text-[13px] font-medium" style={{ color: '#C35E33' }}>
-            Sent to {email}
+          <p className="mt-2 text-[13px] font-semibold" style={{ color: '#C35E33' }}>
+            OTP sent to {email}
           </p>
         )}
       </div>
@@ -192,37 +235,40 @@ export default function VerifyOTPPage() {
         </div>
 
         {error && (
-          <p className="mt-2 mb-4 text-[12px] text-red-600 text-center font-medium">{error}</p>
+          <p className="mt-2 mb-4 text-[12px] text-red-600 text-center font-medium">
+            {error}
+          </p>
         )}
 
         <div className="mt-6">
-          <AuthButton loading={loading} disabled={!isComplete}>
-            Verify-OTP
+          <AuthButton loading={loading} disabled={!isComplete || timer <= 0}>
+            Verify OTP
           </AuthButton>
         </div>
       </form>
 
       {/* Timer + Resend */}
-      <div className="mt-6 flex flex-col items-center gap-2">
+      <div className="mt-6 flex flex-col items-center gap-1.5">
+        <p className="text-[12px] text-gray-400 font-medium">
+          {timer > 0 ? 'Code expires in' : 'Code expired'}
+        </p>
         <CountdownTimer seconds={timer} />
         <button
           type="button"
           onClick={handleResend}
           disabled={timer > 0 || resending}
-          className="text-[13px] font-bold text-gray-900 transition-colors duration-150
-                     disabled:opacity-40 disabled:cursor-not-allowed hover:underline"
-          style={{ cursor: timer > 0 ? 'not-allowed' : 'pointer' }}
-          onMouseEnter={(e) => { if (timer <= 0) e.currentTarget.style.color = '#C35E33' }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#1A1A1A' }}
+          className="text-[13px] font-bold transition-colors duration-150
+                     disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ color: timer <= 0 ? '#C35E33' : '#9CA3AF', cursor: timer > 0 ? 'not-allowed' : 'pointer' }}
         >
-          {resending ? 'Sending…' : 'Resend OTP'}
+          {resending ? 'Sending…' : "Didn't receive it? Resend OTP"}
         </button>
       </div>
 
       {/* Back link */}
       <p className="mt-4 text-center text-[13px] text-gray-500">
-        <Link to="/forgot-password" className="font-semibold" style={{ color: '#C35E33' }}>
-          ← Change email
+        <Link to={ROUTES.FORGOT_PASSWORD} className="font-semibold" style={{ color: '#C35E33' }}>
+          ← Change email address
         </Link>
       </p>
     </AuthLayout>
