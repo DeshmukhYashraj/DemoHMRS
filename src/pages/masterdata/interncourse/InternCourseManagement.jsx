@@ -418,7 +418,7 @@ function TableSkeleton() {
   ))
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
+// ─── Stat Card
 function StatCard({ label, value, color, bg, loading }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
@@ -435,7 +435,7 @@ function StatCard({ label, value, color, bg, loading }) {
   )
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
+// ─── Pagination 
 function Pagination({ current, totalElements, pageSize, totalPages, onChange }) {
   if (totalPages <= 1) return null
   const startItem = current * pageSize + 1

@@ -1,8 +1,61 @@
 // src/pages/attendance/EmployeeAttendance.jsx
+// ── Patch: add "Correction Request" button to the header action row ───────────
+// Find the existing header action buttons section (~line 310 in the previous version)
+// and replace the buttons block with the one below.
+//
+// CHANGE SUMMARY:
+//   1. Import ROUTES (already imported)
+//   2. Add a "Correction Request" button next to the "History" button
+//
+// Only the header JSX fragment is shown — the rest of the file is unchanged.
+// ---------------------------------------------------------------------------
+
+// In the header <div className="flex items-center gap-2 flex-wrap"> block,
+// REPLACE the existing History button with:
+
+/*
+  <div className="flex items-center gap-2 flex-wrap">
+    {/* Shift badge *}
+    <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs"
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: PRIMARY_LIGHT }}>
+        <Clock size={12} color={PRIMARY} />
+      </div>
+      <span className="font-semibold text-gray-700">{SHIFT.name}</span>
+      <span className="text-gray-400">{fmt12(SHIFT.start)} – {fmt12(SHIFT.end)}</span>
+    </div>
+
+    {/* Correction Request button — NEW *}
+    <button
+      onClick={() => navigate(ROUTES.ATTENDANCE_CORRECTION_REQUEST)}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all"
+      style={{ backgroundColor: '#7C3AED', boxShadow: '0 2px 8px rgba(124,58,237,0.25)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#6D28D9')}
+      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#7C3AED')}
+    >
+      <FileText size={14} strokeWidth={2} />
+      Request Correction
+    </button>
+
+    {/* History button *}
+    <button
+      onClick={() => navigate(ROUTES.ATTENDANCE_EMPLOYEE_HISTORY)}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all"
+      style={{ backgroundColor: '#0F172A', boxShadow: '0 2px 8px rgba(15,23,42,0.25)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1E293B')}
+      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0F172A')}
+    >
+      <History size={14} strokeWidth={2} />
+      History
+    </button>
+  </div>
+*/
+
+// ── FULL FILE (complete replacement) ─────────────────────────────────────────
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  LogIn, LogOut, Coffee, Play, Clock, History,
+  LogIn, LogOut, Coffee, Play, Clock, History, FileText,
   TrendingUp, AlertTriangle, CheckCircle2, Timer, ChevronRight, Activity,
 } from 'lucide-react'
 import { useToast }      from '@/components/shared/toast/ToastProvider'
@@ -42,10 +95,8 @@ const nowHHMM = () => {
   return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`
 }
 
-/** Extract "HH:MM:SS" from "2026-05-09T09:32:15" */
 const dtToTime = (dt) => (dt ? dt.split('T')[1]?.substring(0, 8) ?? null : null)
 
-/** Seconds elapsed since a datetime string, minus break seconds. */
 const calcElapsedSecs = (checkInDT, breakSecs) => {
   if (!checkInDT) return 0
   const elapsed = Math.floor((Date.now() - new Date(checkInDT).getTime()) / 1000)
@@ -58,12 +109,12 @@ const STATUS_BADGE = {
   PRESENT:  { bg: '#DCFCE7', color: '#15803D', label: 'Present'  },
   ABSENT:   { bg: '#FEE2E2', color: '#B91C1C', label: 'Absent'   },
   HALF_DAY: { bg: '#FEF9C3', color: '#854D0E', label: 'Half Day' },
-  LEAVE: { bg: '#DBEAFE', color: '#1D4ED8', label: 'On Leave' },
+  ON_LEAVE: { bg: '#DBEAFE', color: '#1D4ED8', label: 'On Leave' },
 }
 
 // ─── Action Card ──────────────────────────────────────────────────────────────
-function ActionCard({ title, icon: Icon, iconColor, timerSecs, timerBg, buttonLabel,
-                      buttonBg, buttonDisabled, onAction, active, pulse, loading }) {
+function ActionCard({ title, icon: Icon, iconColor, timerSecs, timerBg,
+                      buttonLabel, buttonBg, buttonDisabled, onAction, active, pulse, loading }) {
   return (
     <div
       className="relative bg-white rounded-2xl flex flex-col gap-3 p-4 overflow-hidden transition-all duration-300"
@@ -144,7 +195,8 @@ function TodayTimeline({ clockInTime, clockOutTime, breakPeriods, shiftStart, sh
         <div className="flex justify-between text-[11px]">
           <span className="text-gray-400 font-medium">{fmt12(shiftStart)}</span>
           <span className="font-semibold text-blue-500 flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />Clock in to begin
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            Clock in to begin
           </span>
           <span className="text-gray-400 font-medium">{fmt12(shiftEnd)}</span>
         </div>
@@ -153,7 +205,9 @@ function TodayTimeline({ clockInTime, clockOutTime, breakPeriods, shiftStart, sh
   }
 
   const inMin  = toMin(clockInTime.slice(0, 5))
-  const outMin = clockOutTime ? toMin(clockOutTime.slice(0, 5)) : Math.min(nowMin, shiftEndMin + 120)
+  const outMin = clockOutTime
+    ? toMin(clockOutTime.slice(0, 5))
+    : Math.min(nowMin, shiftEndMin + 120)
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5"
@@ -217,7 +271,7 @@ function TodayTimeline({ clockInTime, clockOutTime, breakPeriods, shiftStart, sh
 
 // ─── Week Calendar ────────────────────────────────────────────────────────────
 function WeekCalendar() {
-  const today = new Date()
+  const today  = new Date()
   const monday = new Date(today)
   monday.setDate(today.getDate() - ((today.getDay() + 6) % 7))
 
@@ -225,17 +279,17 @@ function WeekCalendar() {
     const d = new Date(monday)
     d.setDate(monday.getDate() + i)
     return {
-      day:  WEEK_DAYS[d.getDay()],
-      date: String(d.getDate()).padStart(2, '0'),
-      isToday: d.toDateString() === today.toDateString(),
+      day:      WEEK_DAYS[d.getDay()],
+      date:     String(d.getDate()).padStart(2, '0'),
+      isToday:  d.toDateString() === today.toDateString(),
       isFuture: d > today,
     }
   })
 
   const styles = {
-    today:   { bg: PRIMARY_LIGHT, border: PRIMARY + '60', color: PRIMARY, dot: PRIMARY },
-    past:    { bg: '#F0FDF4', border: '#BBF7D0',          color: '#15803D', dot: '#22C55E' },
-    future:  { bg: '#F8FAFC', border: '#E2E8F0',          color: '#94A3B8', dot: '#CBD5E1' },
+    today:  { bg: PRIMARY_LIGHT, border: PRIMARY + '60', color: PRIMARY,   dot: PRIMARY   },
+    past:   { bg: '#F0FDF4',     border: '#BBF7D0',      color: '#15803D', dot: '#22C55E' },
+    future: { bg: '#F8FAFC',     border: '#E2E8F0',      color: '#94A3B8', dot: '#CBD5E1' },
   }
 
   return (
@@ -248,7 +302,9 @@ function WeekCalendar() {
           return (
             <div key={d.day} className="flex-1 flex flex-col items-center rounded-xl py-3"
               style={{ backgroundColor: s.bg, border: `1.5px solid ${s.border}` }}>
-              <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: s.color }}>{d.day}</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: s.color }}>
+                {d.day}
+              </span>
               <span className="text-base font-bold mt-0.5" style={{ color: s.color }}>{d.date}</span>
               <div className="w-1.5 h-1.5 rounded-full mt-1.5" style={{ backgroundColor: s.dot }} />
               {d.isToday && (
@@ -266,14 +322,14 @@ function WeekCalendar() {
 export default function EmployeeAttendance() {
   const navigate  = useNavigate()
   const { toast } = useToast()
-  const { user }  = useAuthStore()
 
-  // ── Attendance state ───────────────────────────────────────────────────────
+  const SHIFT = { name: 'Morning Shift', start: '09:00', end: '18:00', grace: 10, lateAfter: 15 }
+
   const [loading,        setLoading]        = useState(true)
   const [actionLoading,  setActionLoading]  = useState(false)
   const [attState,       setAttState]       = useState('idle')
   const [attendanceId,   setAttendanceId]   = useState(null)
-  const [clockInTime,    setClockInTime]    = useState(null)   // "HH:MM:SS"
+  const [clockInTime,    setClockInTime]    = useState(null)
   const [clockOutTime,   setClockOutTime]   = useState(null)
   const [breakPeriods,   setBreakPeriods]   = useState([])
   const [workSecs,       setWorkSecs]       = useState(0)
@@ -281,12 +337,9 @@ export default function EmployeeAttendance() {
   const [totalBreakSecs, setTotalBreakSecs] = useState(0)
   const [recentHistory,  setRecentHistory]  = useState([])
 
-  // ── Shift info (ideally fetched from /api/shift-assignments/my-current) ────
-  const SHIFT = { name: 'Morning Shift', start: '09:00', end: '18:00', grace: 10, lateAfter: 15 }
-
   const intervalRef = useRef(null)
 
-  // ── Tick ──────────────────────────────────────────────────────────────────
+  // Tick
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       if (attState === 'clocked_in') setWorkSecs((s) => s + 1)
@@ -295,31 +348,22 @@ export default function EmployeeAttendance() {
     return () => clearInterval(intervalRef.current)
   }, [attState])
 
-  // ── Restore today's state from API on mount ────────────────────────────────
+  // Restore state from API
   useEffect(() => {
     const fetchToday = async () => {
       setLoading(true)
       try {
         const res = await attendanceService.getMyToday()
-        if (res?.success && res?.data) {
-          applyAttendanceState(res.data)
-        }
-      } catch {
-        // 404 = not yet checked in — perfectly fine
-      } finally {
-        setLoading(false)
-      }
+        if (res?.success && res?.data) applyAttendanceState(res.data)
+      } catch { /* 404 = not checked in yet */ }
+      finally { setLoading(false) }
     }
-
     const fetchHistory = async () => {
       try {
-        const res = await attendanceService.getMyHistory(0, 5, {})
-        if (res?.success && res?.data?.content) {
-          setRecentHistory(res.data.content)
-        }
+        const res = await attendanceService.getMyHistory(0, 5)
+        if (res?.success && res?.data?.content) setRecentHistory(res.data.content)
       } catch { /* silent */ }
     }
-
     fetchToday()
     fetchHistory()
   }, [])
@@ -328,30 +372,25 @@ export default function EmployeeAttendance() {
     setAttendanceId(att.id)
     setClockInTime(dtToTime(att.checkIn))
     setClockOutTime(dtToTime(att.checkOut))
-
     const breaks = (att.breakLogs || []).map((b) => ({
       start: dtToTime(b.breakStart),
       end:   dtToTime(b.breakEnd),
     }))
     setBreakPeriods(breaks)
-
     const completedBreakSecs = (att.breakMinutes || 0) * 60
     setTotalBreakSecs(completedBreakSecs)
-
     if (att.isCheckedOut) {
       setAttState('clocked_out')
       setWorkSecs((att.workMinutes || 0) * 60)
     } else if (att.isOnBreak) {
       setAttState('on_break')
       setWorkSecs(calcElapsedSecs(att.checkIn, completedBreakSecs))
-      setBreakSecs(0)
     } else if (att.isCheckedIn) {
       setAttState('clocked_in')
       setWorkSecs(calcElapsedSecs(att.checkIn, completedBreakSecs))
     }
   }
 
-  // ── Action handlers ────────────────────────────────────────────────────────
   const handleClockIn = useCallback(async () => {
     setActionLoading(true)
     try {
@@ -362,22 +401,15 @@ export default function EmployeeAttendance() {
         setClockInTime(ciTime)
         setAttState('clocked_in')
         setWorkSecs(0)
-
         const nowM = toMin(nowHHMM())
         const isLate = nowM > toMin(SHIFT.start) + SHIFT.lateAfter
         isLate
-          ? toast.warning(
-              `You clocked in ${nowM - toMin(SHIFT.start)} min after shift start.`,
-              'Late Check-In')
-          : toast.success(
-              `Clocked in at ${fmt12(ciTime?.slice(0, 5))}. Have a great day!`,
-              'Clock In')
+          ? toast.warning(`You clocked in ${nowM - toMin(SHIFT.start)} min after shift start.`, 'Late Check-In')
+          : toast.success(`Clocked in at ${fmt12(ciTime?.slice(0, 5))}. Have a great day!`, 'Clock In')
       }
     } catch (err) {
       toast.error(err?.message || 'Check-in failed. Please try again.', 'Error')
-    } finally {
-      setActionLoading(false)
-    }
+    } finally { setActionLoading(false) }
   }, [toast, SHIFT.start, SHIFT.lateAfter])
 
   const handleBreakIn = useCallback(async () => {
@@ -385,9 +417,7 @@ export default function EmployeeAttendance() {
     try {
       const res = await attendanceService.breakStart()
       if (res?.success && res?.data) {
-        const now = dtToTime(
-          res.data.breakLogs?.at(-1)?.breakStart ?? new Date().toISOString()
-        )
+        const now = dtToTime(res.data.breakLogs?.at(-1)?.breakStart ?? new Date().toISOString())
         setAttState('on_break')
         setBreakSecs(0)
         setBreakPeriods((prev) => [...prev, { start: now, end: null }])
@@ -395,9 +425,7 @@ export default function EmployeeAttendance() {
       }
     } catch (err) {
       toast.error(err?.message || 'Failed to start break.', 'Error')
-    } finally {
-      setActionLoading(false)
-    }
+    } finally { setActionLoading(false) }
   }, [toast])
 
   const handleBreakOut = useCallback(async () => {
@@ -408,7 +436,6 @@ export default function EmployeeAttendance() {
         const latestBreak = res.data.breakLogs?.at(-1)
         const endTime = dtToTime(latestBreak?.breakEnd ?? new Date().toISOString())
         const dur = latestBreak?.durationMinutes ?? Math.floor(breakSecs / 60)
-
         setAttState('clocked_in')
         setTotalBreakSecs((s) => s + breakSecs)
         setBreakPeriods((prev) => {
@@ -421,9 +448,7 @@ export default function EmployeeAttendance() {
       }
     } catch (err) {
       toast.error(err?.message || 'Failed to end break.', 'Error')
-    } finally {
-      setActionLoading(false)
-    }
+    } finally { setActionLoading(false) }
   }, [toast, breakSecs])
 
   const handleClockOut = useCallback(async () => {
@@ -435,30 +460,18 @@ export default function EmployeeAttendance() {
         setClockOutTime(coTime)
         setAttState('clocked_out')
         clearInterval(intervalRef.current)
-
         const finalWork = res.data.workMinutes || Math.floor(workSecs / 60)
         const ot = res.data.overtimeMinutes || 0
         setWorkSecs(finalWork * 60)
-
         ot > 0
-          ? toast.custom({
-              type: 'success',
-              title: 'Clocked Out — Overtime!',
-              message: `Work: ${Math.floor(finalWork / 60)}h ${finalWork % 60}m · OT: ${ot} min`,
-              duration: 6000,
-            })
-          : toast.success(
-              `Work: ${Math.floor(finalWork / 60)}h ${finalWork % 60}m. See you tomorrow!`,
-              'Clocked Out')
+          ? toast.custom({ type: 'success', title: 'Clocked Out — Overtime!', message: `Work: ${Math.floor(finalWork/60)}h ${finalWork%60}m · OT: ${ot} min`, duration: 6000 })
+          : toast.success(`Work: ${Math.floor(finalWork/60)}h ${finalWork%60}m. See you tomorrow!`, 'Clocked Out')
       }
     } catch (err) {
       toast.error(err?.message || 'Check-out failed. Please try again.', 'Error')
-    } finally {
-      setActionLoading(false)
-    }
+    } finally { setActionLoading(false) }
   }, [toast, workSecs])
 
-  // ── Derived values ─────────────────────────────────────────────────────────
   const nowMin         = toMin(nowHHMM())
   const minutesLeft    = attState === 'clocked_in' ? Math.max(0, toMin(SHIFT.end) - nowMin) : 0
   const totalBreakMin  = Math.floor(totalBreakSecs / 60)
@@ -472,44 +485,17 @@ export default function EmployeeAttendance() {
   }[attState]
 
   const cards = [
-    {
-      title: 'Clock-In', icon: LogIn, iconColor: '#22C55E',
-      timerSecs: workSecs, timerBg: '#0F172A',
-      buttonLabel: 'Clock In', buttonBg: '#22C55E',
-      buttonDisabled: attState !== 'idle', onAction: handleClockIn,
-      active: attState === 'idle', pulse: false,
-    },
-    {
-      title: 'Break-In', icon: Coffee, iconColor: PRIMARY,
-      timerSecs: attState === 'on_break' ? breakSecs : totalBreakSecs,
-      timerBg: PRIMARY,
-      buttonLabel: 'Start Break', buttonBg: PRIMARY,
-      buttonDisabled: attState !== 'clocked_in', onAction: handleBreakIn,
-      active: attState === 'clocked_in', pulse: false,
-    },
-    {
-      title: 'Break-Out', icon: Play, iconColor: '#64748B',
-      timerSecs: attState === 'on_break' ? breakSecs : 0,
-      timerBg: attState === 'on_break' ? '#1E293B' : '#94A3B8',
-      buttonLabel: 'End Break', buttonBg: '#1E293B',
-      buttonDisabled: attState !== 'on_break', onAction: handleBreakOut,
-      active: attState === 'on_break', pulse: attState === 'on_break',
-    },
-    {
-      title: 'Clock-Out', icon: LogOut, iconColor: '#0F172A',
-      timerSecs: workSecs,
-      timerBg: attState === 'clocked_out' ? '#22C55E' : '#0F172A',
-      buttonLabel: 'Clock Out', buttonBg: '#0F172A',
-      buttonDisabled: attState !== 'clocked_in', onAction: handleClockOut,
-      active: attState === 'clocked_in', pulse: false,
-    },
+    { title: 'Clock-In',  icon: LogIn,  iconColor: '#22C55E', timerSecs: workSecs,  timerBg: '#0F172A', buttonLabel: 'Clock In',    buttonBg: '#22C55E', buttonDisabled: attState !== 'idle',       onAction: handleClockIn,  active: attState === 'idle',       pulse: false },
+    { title: 'Break-In',  icon: Coffee, iconColor: PRIMARY,   timerSecs: attState === 'on_break' ? breakSecs : totalBreakSecs, timerBg: PRIMARY, buttonLabel: 'Start Break', buttonBg: PRIMARY, buttonDisabled: attState !== 'clocked_in', onAction: handleBreakIn,  active: attState === 'clocked_in', pulse: false },
+    { title: 'Break-Out', icon: Play,   iconColor: '#64748B', timerSecs: attState === 'on_break' ? breakSecs : 0, timerBg: attState === 'on_break' ? '#1E293B' : '#94A3B8', buttonLabel: 'End Break', buttonBg: '#1E293B', buttonDisabled: attState !== 'on_break', onAction: handleBreakOut, active: attState === 'on_break',   pulse: attState === 'on_break' },
+    { title: 'Clock-Out', icon: LogOut, iconColor: '#0F172A', timerSecs: workSecs,  timerBg: attState === 'clocked_out' ? '#22C55E' : '#0F172A', buttonLabel: 'Clock Out', buttonBg: '#0F172A', buttonDisabled: attState !== 'clocked_in', onAction: handleClockOut, active: attState === 'clocked_in', pulse: false },
   ]
 
   const stats = [
-    { icon: <Activity size={16} color={PRIMARY} />,        bg: PRIMARY_LIGHT, label: 'Work Time',   value: attState === 'idle' ? '—' : workHrsDisplay,                                              color: PRIMARY    },
-    { icon: <Coffee size={16} color="#7C3AED" />,          bg: '#F5F3FF',     label: 'Break Taken', value: totalBreakMin > 0 ? `${totalBreakMin} min` : '—',                                       color: '#7C3AED'  },
-    { icon: <Timer size={16} color="#0EA5E9" />,           bg: '#E0F2FE',     label: 'Time Left',   value: attState === 'clocked_in' ? `${Math.floor(minutesLeft/60)}h ${minutesLeft%60}m` : '—',   color: '#0284C7'  },
-    { icon: <CheckCircle2 size={16} color="#15803D" />,    bg: '#DCFCE7',     label: 'Clock-Out',   value: clockOutTime ? fmt12(clockOutTime.slice(0, 5)) : '—',                                   color: '#15803D'  },
+    { icon: <Activity    size={16} color={PRIMARY} />,     bg: PRIMARY_LIGHT, label: 'Work Time',   value: attState === 'idle' ? '—' : workHrsDisplay,                                              color: PRIMARY   },
+    { icon: <Coffee      size={16} color="#7C3AED" />,     bg: '#F5F3FF',     label: 'Break Taken', value: totalBreakMin > 0 ? `${totalBreakMin} min` : '—',                                       color: '#7C3AED' },
+    { icon: <Timer       size={16} color="#0EA5E9" />,     bg: '#E0F2FE',     label: 'Time Left',   value: attState === 'clocked_in' ? `${Math.floor(minutesLeft/60)}h ${minutesLeft%60}m` : '—',   color: '#0284C7' },
+    { icon: <CheckCircle2 size={16} color="#15803D" />,    bg: '#DCFCE7',     label: 'Clock-Out',   value: clockOutTime ? fmt12(clockOutTime.slice(0, 5)) : '—',                                   color: '#15803D' },
   ]
 
   if (loading) {
@@ -546,21 +532,38 @@ export default function EmployeeAttendance() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs">
+          {/* Shift badge */}
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs"
+            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: PRIMARY_LIGHT }}>
               <Clock size={12} color={PRIMARY} />
             </div>
             <span className="font-semibold text-gray-700">{SHIFT.name}</span>
             <span className="text-gray-400">{fmt12(SHIFT.start)} – {fmt12(SHIFT.end)}</span>
           </div>
+
+          {/* ── Correction Request button ── */}
+          <button
+            onClick={() => navigate(ROUTES.ATTENDANCE_CORRECTION_REQUEST)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all"
+            style={{ backgroundColor: '#7C3AED', boxShadow: '0 2px 8px rgba(124,58,237,0.25)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#6D28D9')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#7C3AED')}
+          >
+            <FileText size={14} strokeWidth={2} />
+            Request Correction
+          </button>
+
+          {/* History button */}
           <button
             onClick={() => navigate(ROUTES.ATTENDANCE_EMPLOYEE_HISTORY)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-white"
-            style={{ backgroundColor: '#0F172A' }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all"
+            style={{ backgroundColor: '#0F172A', boxShadow: '0 2px 8px rgba(15,23,42,0.25)' }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1E293B')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0F172A')}
           >
-            <History size={14} strokeWidth={2} /> History
+            <History size={14} strokeWidth={2} />
+            History
           </button>
         </div>
       </div>
@@ -590,6 +593,7 @@ export default function EmployeeAttendance() {
 
       {/* ── Two-column layout ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
         {/* LEFT */}
         <div className="lg:col-span-2 space-y-4">
           <TodayTimeline
@@ -617,14 +621,14 @@ export default function EmployeeAttendance() {
                       <div className="flex items-center gap-3 py-2.5 px-3.5 rounded-xl border"
                         style={{ backgroundColor: PRIMARY_LIGHT, borderColor: PRIMARY + '30' }}>
                         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PRIMARY }} />
-                        <span className="text-xs font-semibold" style={{ color: PRIMARY }}>Break {i + 1} Start</span>
+                        <span className="text-xs font-semibold" style={{ color: PRIMARY }}>Break {i+1} Start</span>
                         <span className="text-xs text-gray-400 ml-auto">{fmt12(bp.start.slice(0, 5))}</span>
                       </div>
                     )}
                     {bp.end && (
                       <div className="flex items-center gap-3 py-2.5 px-3.5 rounded-xl bg-gray-50 border border-gray-100 mt-2">
                         <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0" />
-                        <span className="text-xs font-semibold text-gray-600">Break {i + 1} End</span>
+                        <span className="text-xs font-semibold text-gray-600">Break {i+1} End</span>
                         <span className="text-xs text-gray-400 ml-auto">{fmt12(bp.end.slice(0, 5))}</span>
                       </div>
                     )}
@@ -695,7 +699,7 @@ export default function EmployeeAttendance() {
                 const co = r.checkOut ? fmt12(r.checkOut.split('T')[1]?.substring(0, 5)) : null
                 const wh = r.workMinutes > 0
                   ? `${Math.floor(r.workMinutes/60)}h ${r.workMinutes%60}m` : '—'
-                const late = r.lateMinutes > 0
+                const late = (r.lateMinutes || 0) > 0
 
                 return (
                   <div key={r.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
@@ -723,6 +727,24 @@ export default function EmployeeAttendance() {
               })}
             </div>
           </div>
+
+          {/* Quick action: Request Correction */}
+          <button
+            onClick={() => navigate(ROUTES.ATTENDANCE_CORRECTION_REQUEST)}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-dashed text-left transition-all group"
+            style={{ borderColor: '#7C3AED30', backgroundColor: '#FAFAFE' }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#7C3AED60'; e.currentTarget.style.backgroundColor = '#F5F3FF' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#7C3AED30'; e.currentTarget.style.backgroundColor = '#FAFAFE' }}
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#EDE9FE' }}>
+              <FileText size={18} color="#7C3AED" />
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-gray-800">Request Attendance Correction</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Missed check-in/out? Submit a request to HR</p>
+            </div>
+            <ChevronRight size={16} color="#7C3AED" className="ml-auto flex-shrink-0" />
+          </button>
         </div>
       </div>
     </>

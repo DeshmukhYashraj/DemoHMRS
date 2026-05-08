@@ -21,12 +21,15 @@ const EmployeeList    = lazy(() => import('@/pages/employee/EmployeeList'))
 const AddEmployee     = lazy(() => import('@/pages/employee/AddEmployee'))
 const AddIntern       = lazy(() => import('@/pages/employee/AddIntern'))
 const AddTrainee      = lazy(() => import('@/pages/employee/AddTrainee'))
+const EditEmployee = lazy(() => import('@/pages/employee/EditEmployee'))
+
 
 // ── Attendance ────────────────────────────────────────────────────────────────
 const AttendanceOverview        = lazy(() => import('@/pages/attendance/AttendanceOverview'))
 const PendingApprovals          = lazy(() => import('@/pages/attendance/PendingApprovals'))
 const EmployeeAttendance        = lazy(() => import('@/pages/attendance/EmployeeAttendance'))
 const EmployeeAttendanceHistory = lazy(() => import('@/pages/attendance/EmployeeAttendanceHistory'))
+const EmployeeAttendanceCorrectionRequest = lazy(() => import('@/pages/attendance/EmployeeAttendanceCorrectionRequest'))
 
 // ── Shift Management ──────────────────────────────────────────────────────────
 const ShiftManagement      = lazy(() => import('@/pages/shift/ShiftManagement'))
@@ -138,6 +141,7 @@ export const router = createBrowserRouter([
       rr(ROUTES.EMPLOYEE_ADD_INTERN,  AddIntern),
       rr(ROUTES.EMPLOYEE_ADD_TRAINEE, AddTrainee),
       rr(ROUTES.EMPLOYEE_ADD,         AddEmployee),
+      rr(ROUTES.EMPLOYEE_EDIT,        EditEmployee),
 
       // ── Attendance (Admin / HR view)
       rr(ROUTES.ATTENDANCE,         AttendanceOverview),
@@ -146,6 +150,7 @@ export const router = createBrowserRouter([
       // ── Attendance (Employee / Intern / Trainee view)
       rr(ROUTES.ATTENDANCE_EMPLOYEE,         EmployeeAttendance),
       rr(ROUTES.ATTENDANCE_EMPLOYEE_HISTORY, EmployeeAttendanceHistory),
+      rr(ROUTES.ATTENDANCE_CORRECTION_REQUEST, EmployeeAttendanceCorrectionRequest),
 
       // ── Shift Management (Admin / HR)
       rr(ROUTES.SHIFT,              ShiftManagement),

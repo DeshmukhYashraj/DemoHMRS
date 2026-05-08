@@ -15,12 +15,14 @@ export const ROUTES = {
   EMPLOYEE_ADD:       '/employees/add',
   EMPLOYEE_ADD_INTERN:'/employees/add-intern',
   EMPLOYEE_ADD_TRAINEE:'/employees/add-trainee',
+  EMPLOYEE_EDIT:        '/employees/:id/edit', 
 
   // ── Attendance ───────────────────────────────────────────────────────────────
   ATTENDANCE:                  '/attendance',
   ATTENDANCE_EMPLOYEE:         '/my-attendance',
   ATTENDANCE_PENDING:          '/attendance/pending',
   ATTENDANCE_EMPLOYEE_HISTORY: '/my-attendance/history',
+  ATTENDANCE_CORRECTION_REQUEST:  '/my-attendance/correction-request',
 
   // ── Shift Management ─────────────────────────────────────────────────────────
   SHIFT:              '/shifts',
